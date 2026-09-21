@@ -3,11 +3,30 @@ _start:
 .text
 main:
     addi     sp, zero, 0x600
-    lw    	 a0, prueba
-    la       a1, resultado_bcd 
-    jal   ra, ca2_bcd   
+	
+	#entero BCD
+    #lw    	  a0, prueba
+    #la       a1, resultado_bcd 
+    #jal   ra, ca2_bcd   
+	
+	#BCD float
+	#la   a0, resultado_bcd 
+    #jal  ra, bcd_to_float
+	#fmv.s fs0, fa0
+	
+	#float  BCD
+	
+    la   a1, resultado_bcd
+    la   t0, prueba
+    flw  fa0, 0(t0)
+	jal  ra, float_to_bcd
+
+	
+	
 	fin_prog:
 		beq zero, zero, fin_prog
+		
+		
     ca2_bcd:
 
 	addi sp, sp, -24          #separar espacio stack
@@ -23,69 +42,272 @@ main:
     la  s2, cte_div       #cargar arrays
     add s4, s1, zero
                 
+	sw   zero, 0(s1)
     bge   s0, zero, positivo
 	sub   s0, zero, s0
-    addi  s3, zero, 1         #s3 es el flag de negativo
-    positivo:
-    addi  t0, zero, 0       # contador
-    addi  t1, zero, 10    
-    array:
-        beq   t1, t0, fin_array   # i == 10
-        add   t2, t0, t0          
-        add   t2, t2, t2           # 4*i  offset
-        add   t2, t2, s2           # base + offset
-
-        add   a0, s0, zero           # dividendo
-        lw    a1, 0(t2)            # cte_div[i]  -> divisor
-
-        jal cociente
-
-        add   t4, t0, t0
-        add   t4, t4, t4           
-        add   t4, t4, s4           # base + offset
-        sw    a0, 0(t4)            # resultado_bcd[i]
-		
-		add   a0, s0, zero         # recargar dividendo original
-        lw    a1, 0(t2)            # recargar divisor 
-
-        jal residuo
-        add   s0, a0, zero
-
-        addi  t0, t0, 1            # i++
-        beq zero, zero, array   
-
-	fin_array:
-    lw     s0, 20(sp)
-    lw     s1, 16(sp)
-    lw     s2, 12(sp)
-    lw     s3, 8(sp)
-    lw     s4, 4(sp)
-    lw     ra, 0(sp)
-    addi sp, sp, 24
-    add  a0, s1, zero
-    jr ra
+	addi  t5, zero, 1
+    sw    t5, 0(s1)
 	
-cociente: 
-    addi t3, zero, 0 
-    for1:
-            blt a0, a1, end1
-            sub a0, a0, a1
-            addi t3, t3, 1 
-            beq   zero, zero, for1
-    end1:
-        add a0, t3, zero
-        jr ra
-residuo: 
-    for2:
-            blt a0, a1, end2
-            sub a0, a0, a1
-            beq   zero, zero, for2
-    end2:
-        add a0, a0, zero
-        jr ra
+    positivo:
+		addi  t0, zero, 0       # contador
+		addi  t1, zero, 10    
+		addi  t6, zero, 1 
+		array:
+			beq   t1, t0, fin_array   # i == 10
+			add   t2, t0, t0          
+			add   t2, t2, t2           
+			add   t2, t2, s2           
+
+			add   a0, s0, zero           # dividendo
+			lw    a1, 0(t2)            # cte_div[i]  divisor
+			jal cociente
+
+			add   t4, t6, t6
+			add   t4, t4, t4           
+			add   t4, t4, s4           
+			sw    a0, 0(t4)            # resultado_bcd[i]
+
+			add   a0, s0, zero         # recargar dividendo original
+			lw    a1, 0(t2)            # divisor 
+			jal residuo
+			add   s0, a0, zero
+
+			addi  t0, t0, 1            # i++
+			addi  t6, t6, 1
+			beq zero, zero, array   
+
+		fin_array:
+			addi t5, zero, 46
+    		sw   t5, 44(s1)    
+			sw zero, 48(s1)     # resultado_bcd[13]  = 0
+    		sw zero, 52(s1)     # resultado_bcd[14]  = 0
+    		sw zero, 56(s1)     # resultado_bcd[15] = 0
+    		sw zero, 60(s1)     # resultado_bcd[16] = 0
+    		sw zero, 64(s1)		## resultado_bcd[17] = 0
+			
+			add  a0, s1, zero
+			
+			lw     s0, 20(sp)
+			lw     s1, 16(sp)
+			lw     s2, 12(sp)
+			lw     s3, 8(sp)
+			lw     s4, 4(sp)
+			lw     ra, 0(sp)
+			addi sp, sp, 24
+			jr ra
+	
 		
+
+	bcd_to_float:
+		addi sp, sp, -20          #separar espacio stack
+		sw   s0, 16(sp)
+		sw   s1, 12(sp)
+		sw   s2, 8(sp)
+		sw   s3, 4(sp)
+		sw   ra, 0(sp)
+		
+		add   s0, a0, zero
+		add   s1, zero, 0	
+		addi  s3, zero, 0
+		addi  t0, zero, 1       # contador       
+		addi  t1, zero, 17
+		addi  s2, zero, 46
+		
+		
+		int:
+			add   t2, t0, t0          
+        	add   t2, t2, t2           # 4*i  offset
+        	add   t2, t2, s0           
+		
+			lw    t3, 0(t2)			   #cargar valor del array
+			
+			beq   t3, s2, fraction
+			
+			addi  a0, s1, 0
+			
+			jal mult10
+			
+			add  s1, a0, t3
+			
+			addi  t0, t0, 1            # i++
+			beq zero, zero, int
+		
+		fraction:
+		
+			addi  t0, t0, 1            # i++
+			
+			beq   t1, t0, fin_int
+			add   t2, t0, t0          
+        	add   t2, t2, t2           # 4*i  offset
+        	add   t2, t2, s0           # base + offset
+			
+			lw    t3, 0(t2)			   #cargar valor del array
+			
+			addi  a0, s3, 0
+			
+			jal mult10
+			
+			add  s3, a0, t3
+			
+			beq zero, zero, fraction
+
+	
+
+		fin_int:
+				fcvt.s.w  fa0, s1
+				fcvt.s.w  fa1, s3
+				
+				li t0, 100000
+				
+				fcvt.s.w  ft0, t0
+				fdiv.s    fa1, fa1, ft0
+				
+				fadd.s 	  fa0, fa0, fa1
+				
+				lw t6, 0(a0)
+				beq	t6, zero, pos
+				fcvt.s.w ft1, zero     # ft0 = 0.0
+				fsub.s   fa0, ft1, fa0 
+
+			pos:
+				
+				lw   s0, 16(sp)
+				lw   s1, 12(sp)
+				lw   s2, 8(sp)
+				lw   s3, 4(sp)
+				lw   ra, 0(sp)
+				addi sp, sp, 20
+				jr ra
+
+	
+	float_to_bcd:
+		addi sp, sp, -16
+		sw   ra, 0(sp)
+
+		# Signo float 
+		fmv.w.x fa3, zero
+		flt.s t6, fa0, fa3
+		sw   t6, 8(sp)
+
+		#  valor absoluto
+		beq  t6, zero, es_positivo
+		fsgnjn.s fa0, fa0, fa0
+
+	es_positivo:
+		# redondea al mas cercano 
+		fcvt.w.s t0, fa0
+		fcvt.s.w fa1, t0
+		flt.s t1, fa0, fa1          # t1 = 1 si el redondeo subio (entero > original)
+		sub  t0, t0, t1             # corregir: entero = entero - t1
+		sw   t0, 4(sp)
+
+		add  a0, t0, zero
+		jal  ra, ca2_bcd            # base arreglo
+
+		#signo (0/1)
+		lw   t6, 8(sp)
+		sw   t6, 0(a0)
+
+		# Punto decimal 11 ( ASCII)
+		addi t4, a0, 44
+		addi t5, zero, 46
+		sw   t5, 0(t4)
+
+		# Fraccion en 12
+		addi a1, a0, 48
+
+		# Fraccion = abs(original) - entero  (queda en [0,1))
+		lw   t0, 4(sp)
+		fcvt.s.w fa1, t0
+		fsub.s fa0, fa0, fa1
+
+		jal  ra, frac_bcd
+
+		lw   ra, 0(sp)
+		addi sp, sp, 16
+		jr   ra
+
+	frac_bcd:
+		addi sp, sp, -16
+		sw   ra, 0(sp)
+
+		addi t1, zero, 0
+		addi t2, zero, 5
+
+	loop_frac:
+		beq  t1, t2, fin_frac
+
+		# Multiplicar por 10
+		la   t4, f10
+		flw  ft0, 0(t4)
+		fmul.s fa0, fa0, ft0
+
+		# Restar 0.499999 (truncamiento)
+		la   t4, fhalf
+		flw  ft1, 0(t4)
+		fsub.s fa2, fa0, ft1
+
+		fcvt.w.s t5, fa2
+
+		# Evitar digitos negativos
+		blt  t5, zero, cero_digito
+		beq  zero, zero, guardar_digito
+
+	cero_digito:
+		addi t5, zero, 0
+
+	guardar_digito:
+		# Guardar digito directamente (sin +48)
+		sw   t5, 0(a1)
+		addi a1, a1, 4
+
+		# Restar digito a la fraccion
+		fcvt.s.w fa3, t5
+		fsub.s fa0, fa0, fa3
+
+		addi t1, t1, 1
+		beq  zero, zero, loop_frac
+
+	fin_frac:
+		lw   ra, 0(sp)
+		addi sp, sp, 16
+		jr   ra
+		
+		
+		
+	cociente: 
+		addi t3, zero, 0 
+		for1:
+				blt a0, a1, end1
+				sub a0, a0, a1
+				addi t3, t3, 1 
+				beq   zero, zero, for1
+		end1:
+			add a0, t3, zero
+			jr ra
+	residuo: 
+		for2:
+				blt a0, a1, end2
+				sub a0, a0, a1
+				beq   zero, zero, for2
+		end2:
+			add a0, a0, zero
+			jr ra
+
+	mult10:
+		add  t4, a0, a0     # t4 = a0*2
+   		add  t5, t4, t4     
+    	add  t5, t5, t5     # t5 = a0*8
+    	add  a0, t5, t4 
+		jr ra	
+	
 		
 .data
-prueba: .word -2147483647
+prueba: .float -9999.9
 cte_div: .word 1000000000,100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1
-resultado_bcd: .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+resultado_bcd: .word 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+resultado_bcd2:.word 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+ 
+f10:.float 10.0
+ 
+fhalf:.float 0.499999
